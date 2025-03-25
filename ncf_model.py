@@ -114,7 +114,7 @@ def load_preprocessed_data(train_file, val_file, test_file):
 # ============
 # This function implements the training loop with binary cross-entropy loss,
 # Adam optimizer, and early stopping based on validation loss.
-def train_model(model, train_data, val_data, epochs=50, batch_size=256, lr=0.0005, patience=5):
+def train_model(model, train_data, val_data, epochs=50, batch_size=256, lr=0.0001, patience=5):
     # Define loss function and optimizer
     criterion = nn.BCELoss()  # Binary cross-entropy loss for binary labels (0 or 1)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)  # Adam optimizer
@@ -194,7 +194,7 @@ def evaluate_model(model, test_data, num_items, k=10):
             
             # Generate predictions for all possible items
             all_items = torch.arange(num_items, dtype=torch.long)
-            user_tensor = user.repeat(num_items)  # Repeat user ID for each item
+            user_tensor = user.repeat(num_items)  
             predictions = model(user_tensor, all_items).squeeze()
             
             # Get top-k predicted items
@@ -220,9 +220,9 @@ def evaluate_model(model, test_data, num_items, k=10):
                     dcg += 1 / np.log2(i + 2)  # i+2 because i is 0-based
             idcg = sum(1 / np.log2(i + 2) for i in range(min(num_relevant, k)))
             ndcg = dcg / idcg if idcg > 0 else 0.0
-            ndcg_sum += ndcg
+            ndcg_sum += ndcg 
     
-    # Average over all users
+    # Average over all users 
     num_users = len(unique_users)
     avg_recall = recall_sum / num_users
     avg_ndcg = ndcg_sum / num_users
