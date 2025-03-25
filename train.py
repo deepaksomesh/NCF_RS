@@ -67,14 +67,14 @@ it now groups items by user and generates predictions for each user at once. Thi
 
 
 # Configuration
-DATA_PATH = 'ml-1m/ml-1m/ratings.dat'  # Update with the actual path
+DATA_PATH = 'ml-1m/ratings.dat'  # Update with the actual path
 NUM_NEGATIVE_SAMPLES = 4
 EMBEDDING_DIM = 32
 MLP_LAYERS = [64, 32, 16, 8]  # Adjusted MLP layers for better performance
 BATCH_SIZE = 256
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001
 EPOCHS = 100
-EARLY_STOPPING_PATIENCE = 10
+EARLY_STOPPING_PATIENCE = 7
 TOP_K = 10
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 RANDOM_SEED = 42
@@ -202,18 +202,27 @@ class NCF(nn.Module):
 
 
 # Evaluation Metrics
-def hit_ratio(predicted, ground_truth):
-    return 1 if ground_truth in predicted else 0
+def recall(predicted, ground_truth):
+    """Calculates recall@K."""
+    hits = sum([1 for item in ground_truth if item in predicted])
+    return hits / len(ground_truth) if ground_truth else 0
+
 
 def ndcg(predicted, ground_truth):
-    if ground_truth in predicted:
-        index = predicted.index(ground_truth)
-        return 1 / np.log2(index + 2)
-    return 0
+    """Calculates nDCG@K."""
+    dcg = 0.0
+    for i, item in enumerate(predicted):
+        if item in ground_truth:
+            dcg += 1 / np.log2(i + 2)
+    idcg = 0.0
+    for i in range(min(len(ground_truth), len(predicted))):
+        idcg += 1 / np.log2(i + 2)
+    return dcg / idcg if idcg > 0 else 0
+
 
 def evaluate(model, data_loader, top_k):
     model.eval()
-    hr_sum, ndcg_sum = 0, 0
+    recall_sum, ndcg_sum = 0, 0
     num_users = 0
 
     with torch.no_grad():
@@ -228,7 +237,7 @@ def evaluate(model, data_loader, top_k):
         for user_id, items in user_item_pairs.items():
             pos_items = [item_id for item_id, label in items if label == 1]
             if not pos_items:
-                continue
+                continue  # Skip users with no positive items
 
             # Get all item IDs for this user
             all_items = [item_id for item_id, _ in items]
@@ -245,17 +254,16 @@ def evaluate(model, data_loader, top_k):
             _, indices = torch.topk(predictions, k)
             recommended_items = [all_items[i] for i in indices.cpu().numpy()]
 
-            # Calculate HR and NDCG for each positive item
-            for pos_item in pos_items:
-                hr_sum += hit_ratio(recommended_items, pos_item)
-                ndcg_sum += ndcg(recommended_items, pos_item)
+            # Calculate Recall and NDCG for each user
+            recall_sum += recall(recommended_items, pos_items)
+            ndcg_sum += ndcg(recommended_items, pos_items)
+            num_users += 1
 
-            num_users += len(pos_items)  # Count each positive item as a user instance
+    recall_at_k = recall_sum / num_users if num_users > 0 else 0
+    ndcg_at_k = ndcg_sum / num_users if num_users > 0 else 0
 
-    hr = hr_sum / num_users if num_users > 0 else 0
-    ndcg_ = ndcg_sum / num_users if num_users > 0 else 0
+    return recall_at_k, ndcg_at_k
 
-    return hr, ndcg_
 
 # Training Loop
 def train(model, train_loader, val_loader, optimizer, epochs, early_stopping_patience):
@@ -347,6 +355,6 @@ if __name__ == "__main__":
     model.to(DEVICE)
 
     # 6. Evaluate Model
-    hr, ndcg_score = evaluate(model, test_loader, TOP_K)
-    print(f"Recall@{TOP_K}: {hr:.4f}")
+    recall_at_k, ndcg_score = evaluate(model, test_loader, TOP_K)
+    print(f"Recall@{TOP_K}: {recall_at_k:.4f}")
     print(f"NDCG@{TOP_K}: {ndcg_score:.4f}")
