@@ -50,13 +50,4 @@ This ensures that the script can access the dataset without any file path issues
 ```bash
 python ncf.py
 ```
-### 📁 Project Structure
-project-root/ 
-├── ml-1m/ # Original extracted dataset folder (optional to keep here) 
-│ └── ratings.dat # Original ratings file 
-├── ratings.dat # Copied ratings file placed at root level 
-├── ncf.py # Main script to run NCF model 
-├── requirements.txt # Python dependencies 
-└── README.md # Project documentation
-
 Sit back and watch the magic happen ✨
