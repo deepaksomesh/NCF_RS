@@ -176,7 +176,7 @@ class BERT4RecDataset(Dataset):
         if self.mode == 'train':
             seq = self.sequences_data[idx]
         else:
-            seq, target_items = self.sequences_data[idx] # target_items is now a list
+            seq, target_items = self.sequences_data[idx]
 
         seq_len = len(seq)
         padding_len = max(0, self.max_len - seq_len)
@@ -201,8 +201,8 @@ class BERT4RecDataset(Dataset):
                 labels[mask_pos] = input_ids[mask_pos]
                 output_seq[mask_pos] = self.mask_token_id
             return torch.tensor(output_seq, dtype=torch.long), torch.tensor(labels, dtype=torch.long)
-
-        else: # mode == 'val' or 'test'
+        # mode == 'val' or 'test'
+        else:
             output_seq = input_ids.copy()
             if seq_len > 0:
                 mask_pos = seq_len - 1
@@ -318,15 +318,15 @@ def train_model_bert4rec(model, train_loader, val_loader, user_sequences_full_se
         val_recall, val_ndcg = evaluate_model_bert4rec( # Calls the multi-item eval function
             model, val_loader, user_sequences_full_sets, num_items, device, top_k, num_negatives=100
         )
-        print(f"Val Recall@{top_k} (Multi-Item): {val_recall:.4f}") # Clarify metric type
-        print(f"Val NDCG@{top_k} (Multi-Item): {val_ndcg:.4f}")   # Clarify metric type
+        print(f"Val Recall@{top_k}: {val_recall:.4f}")
+        print(f"Val NDCG@{top_k}: {val_ndcg:.4f}")
 
         # Early stopping logic
         if val_ndcg > best_val_ndcg:
             best_val_ndcg = val_ndcg
             best_model_state = model.state_dict()
             epochs_no_improve = 0
-            print(f"New best model found! Validation NDCG@{top_k} (Multi-Item): {best_val_ndcg:.4f}\n")
+            print(f"New best model found! Validation NDCG@{top_k}: {best_val_ndcg:.4f}\n")
         else:
             epochs_no_improve += 1
             print(f"No improvement in validation NDCG@{top_k}. Epochs without improvement: {epochs_no_improve}/{patience}\n")
@@ -335,7 +335,7 @@ def train_model_bert4rec(model, train_loader, val_loader, user_sequences_full_se
                 break
 
     if best_model_state:
-        print(f"Loading best model state with validation NDCG@{top_k} (Multi-Item): {best_val_ndcg:.4f}")
+        print(f"Loading best model state with validation NDCG@{top_k}: {best_val_ndcg:.4f}")
         model.load_state_dict(best_model_state)
     else:
         print("Warning: No best model state saved. Using the state from the last epoch.")
@@ -355,7 +355,7 @@ def evaluate_model_bert4rec(model, data_loader, user_sequences_full_sets, num_it
     all_item_ids = set(range(1, num_items + 1))
     eps = 1e-9
 
-    eval_progress = tqdm(data_loader, desc="Evaluating (Multi-Item Neg Samp)")
+    eval_progress = tqdm(data_loader, desc="Evaluating")
     with torch.no_grad():
         for input_ids, target_items_batch, user_ids_batch in eval_progress:
             input_ids = input_ids.to(device)
@@ -374,8 +374,8 @@ def evaluate_model_bert4rec(model, data_loader, user_sequences_full_sets, num_it
                     continue
 
                 seq_with_mask = input_ids[i]
-                # Get the list of ground truth items for this user
-                # Filter out any potential padding if dataset/dataloader added it
+                # Get the list of ground truth items for the user
+                # Filter out any potential padding if dataset/dataloader is adding it
                 true_target_items_list = [item_id for item_id in target_items_batch[i].tolist() if item_id != pad_token_id]
                 if not true_target_items_list:
                     continue
@@ -535,13 +535,10 @@ def main():
         })
 
     # Print and save overall comparison results
-    print(f"\n--- Overall Comparison (Multi-Item Chronological Split - {NUM_FUTURE_ITEMS} Items) ---")
+    print(f"\n--- Overall Comparison ---")
     results_df = pd.DataFrame(results)
     results_df = results_df.sort_values(by=f"NDCG@{TOP_K}", ascending=False)
     print(results_df.to_string(index=False))
-    csv_filename = f"bert4rec_multi{NUM_FUTURE_ITEMS}_chrono_comparison_results.csv"
-    results_df.to_csv(csv_filename, index=False)
-    print(f"\nComparison results saved to {csv_filename}")
 
     # Generate and save comparison plot with table
     try:
@@ -555,7 +552,7 @@ def main():
         rects2 = ax_bar.bar(x + width/2, results_df[ndcg_col], width, label=f'NDCG@{TOP_K}', color='tab:orange')
 
         ax_bar.set_ylabel('Scores')
-        ax_bar.set_title(f'BERT4Rec Multi-{NUM_FUTURE_ITEMS} Item Chrono Split Comparison (ML-1M, MAX_LEN={MAX_LEN})')
+        ax_bar.set_title(f'BERT4Rec (ML-1M, MAX_LEN={MAX_LEN})')
         ax_bar.set_xticks(x)
         ax_bar.set_xticklabels(results_df['Model'])
         ax_bar.legend()
@@ -579,7 +576,7 @@ def main():
         table.set_fontsize(8)
         table.scale(1.2, 1.2)
 
-        plot_filename = f"bert4rec_multi{NUM_FUTURE_ITEMS}_chrono_comparison_plot.png"
+        plot_filename = f"bert4rec_comparison_plot.png"
         plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
         print(f"Comparison plot with table saved to {plot_filename}")
         plt.close()
